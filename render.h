@@ -197,15 +197,15 @@ public:
         return *next_;
     }
 
-    typedef std::tuple<Iterator, std::string, int> context_t;
+    typedef std::tuple<Iterator, const std::string*, int> context_t;
     context_t save() const {
-        return std::make_tuple(current_, line_, line_number_);
+        return std::make_tuple(current_, &line_, line_number_);
     }
     void load(context_t context) {
         current_ = next_ = std::get<0>(context);
         if (next_ != last_)
             ++next_;
-        line_ = std::get<1>(context);
+        line_ = *std::get<1>(context);
         line_number_ = std::get<2>(context);
     }
 
