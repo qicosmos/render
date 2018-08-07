@@ -1,5 +1,4 @@
-#ifndef GINGER_H_INCLUDED
-#define GINGER_H_INCLUDED
+#pragma once
 
 #include <iostream>
 #include <exception>
@@ -13,7 +12,7 @@
 #include <functional>
 #include <memory>
 
-namespace ginger {
+namespace render {
 
 class object {
     struct holder {
@@ -556,4 +555,3 @@ static void parse(const char* input, Dictionary&& dic) {
 
 }
 
-#endif // GINGER_H_INCLUDED
