@@ -12,102 +12,133 @@
 #include <functional>
 #include <memory>
 #include "nlohmann_json.hpp"
+#include <iomanip>
 
-namespace render {
+namespace render
+{
 
-class object {
-    struct holder {
-        virtual ~holder() { }
+class object
+{
+    struct holder
+    {
+        virtual ~holder() {}
         virtual bool cond() const = 0;
-        virtual void map(const std::function<void (object)>& f) const = 0;
+        virtual void map(const std::function<void(object)> &f) const = 0;
         virtual std::string str() const = 0;
-        virtual object get(std::string name) = 0;
+        virtual object& get(std::string name) = 0;
     };
 
-    template<class T>
-    struct holder_impl : holder {
+    template <class T>
+    struct holder_impl : holder
+    {
         T obj;
-        holder_impl(T obj) : obj(std::move(obj)) { }
+        holder_impl(T obj) : obj(std::move(obj)) {}
 
-        template<class U, int = sizeof(std::declval<U>() ? true : false)>
-        bool cond_(int) const {
+        template <class U, int = sizeof(std::declval<U>() ? true : false)>
+        bool cond_(int) const
+        {
             return static_cast<bool>(obj);
         }
-        template<class>
-        bool cond_(...) const {
+        template <class>
+        bool cond_(...) const
+        {
             throw "This value does not evaluate.";
         }
-        virtual bool cond() const override {
+        virtual bool cond() const override
+        {
             return cond_<T>(0);
         }
 
-        template<class U, int = sizeof(std::declval<U>().begin(), std::declval<U>().end())>
-        void map_(int, const std::function<void (object)>& f) const {
-            for (auto&& v: obj) {
+        template <class U, int = sizeof(std::declval<U>().begin(), std::declval<U>().end())>
+        void map_(int, const std::function<void(object)> &f) const
+        {
+            for (auto &&v : obj)
+            {
                 f(v);
             }
         }
-        template<class>
-        void map_(long, const std::function<void (object)>&, ...) const {
+        template <class>
+        void map_(long, const std::function<void(object)> &, ...) const
+        {
             throw "This value does not have begin() or end().";
         }
-        virtual void map(const std::function<void (object)>& f) const override {
+        virtual void map(const std::function<void(object)> &f) const override
+        {
             map_<T>(0, f);
         };
 
-        template<class U, int = sizeof(std::declval<std::stringstream&>() << std::declval<U>())>
-        std::string str_(int) const {
+        template <class U, int = sizeof(std::declval<std::stringstream &>() << std::declval<U>())>
+        std::string str_(int) const
+        {
+            return str_help(obj);
+        }
+
+        template<typename Object>
+        std::string str_help(Object& t) const{
             std::stringstream ss;
-            ss << obj;
+            ss << t;
             return ss.str();
         }
-        template<class U>
-        std::string str_(...) const {
+
+        std::string str_help(double t) const{
+            std::stringstream ss;
+            ss<<std::setprecision(64)<<t;
+            return ss.str();
+        }
+
+        template <class U>
+        std::string str_(...) const
+        {
             throw "This value does not have operator<<().";
         }
-        virtual std::string str() const override {
+        virtual std::string str() const override
+        {
             return str_<T>(0);
         }
 
-        template<class U, int = sizeof(std::declval<U>()[std::declval<std::string>()])>
-        object get_(int, std::string name) {
+        template <class U, int = sizeof(std::declval<U>()[std::declval<std::string>()])>
+        object& get_(int, std::string name)
+        {
             return obj[std::move(name)];
         }
-        template<class U>
-        object get_(long, std::string, ...) {
+        template <class U>
+        object& get_(long, std::string, ...)
+        {
             throw "This value does not have operator[]().";
         }
-        virtual object get(std::string name) override {
+        virtual object& get(std::string name) override
+        {
             return get_<T>(0, std::move(name));
         }
     };
 
     std::shared_ptr<holder> holder_;
 
-public:
+  public:
     object() = default;
-    object(const object&) = default;
-    object(object&&) = default;
-    object& operator=(const object&) = default;
-    object& operator=(object&&) = default;
+    object(const object &) = default;
+    object(object &&) = default;
+    object &operator=(const object &) = default;
+    object &operator=(object &&) = default;
 
-    template<class T>
-    object(T v) : holder_(new holder_impl<T>(std::move(v))) { }
+    template <class T>
+    object(T v) : holder_(new holder_impl<T>(std::move(v))) {}
 
-    template<class T>
+    template <class T>
     void operator=(T v) { holder_.reset(new holder_impl<T>(std::move(v))); }
 
     explicit operator bool() const { return holder_->cond(); }
-    void map(const std::function<void (object)>& f) const { holder_->map(f); }
+    void map(const std::function<void(object)> &f) const { holder_->map(f); }
     std::string str() const { return holder_->str(); }
-    object operator[](std::string name) { return holder_->get(std::move(name)); }
+    object& operator[](std::string name) { return holder_->get(std::move(name)); }
 };
 
 using json = nlohmann::json;
 
 typedef std::map<std::string, object> temple;
 
-class parse_error : public std::exception {
+class parse_error : public std::exception
+{
     std::string message_;
     int line_number_;
     std::string line1_;
@@ -115,12 +146,10 @@ class parse_error : public std::exception {
     std::string what_;
     std::string long_error_;
 
-public:
+  public:
     parse_error(std::string message, int line_number, std::string line1, std::string line2)
-        : message_(std::move(message))
-        , line_number_(line_number)
-        , line1_(line1)
-        , line2_(line2) {
+        : message_(std::move(message)), line_number_(line_number), line1_(line1), line2_(line2)
+    {
         {
             std::stringstream ss;
             ss << "line " << line_number_ << ": " << message_ << std::endl;
@@ -135,76 +164,90 @@ public:
             long_error_ = ss.str();
         }
     }
-    virtual const char* what() const noexcept { return what_.c_str(); }
+    virtual const char *what() const noexcept { return what_.c_str(); }
     int line_number() const noexcept { return line_number_; }
-    const std::string& line1() const noexcept { return line1_; }
-    const std::string& line2() const noexcept { return line2_; }
-    const std::string& long_error() const noexcept { return long_error_; }
+    const std::string &line1() const noexcept { return line1_; }
+    const std::string &line2() const noexcept { return line2_; }
+    const std::string &long_error() const noexcept { return long_error_; }
 };
 
-namespace internal {
+namespace internal
+{
 
 typedef std::map<std::string, std::vector<object>> tmpl_context;
 
-template<class Iterator>
-class parser {
-public:
+template <class Iterator>
+class parser
+{
+  public:
     Iterator current_;
     Iterator next_;
     Iterator last_;
     std::string line_;
     int line_number_;
 
-public:
+  public:
     typedef std::pair<Iterator, Iterator> range_t;
 
-    parser(Iterator first, Iterator last) : next_(first), last_(last), line_number_(1) {
+    parser(Iterator first, Iterator last) : next_(first), last_(last), line_number_(1)
+    {
         assert(first != last);
         current_ = next_++;
     }
 
-    void read() {
+    void read()
+    {
         if (current_ == last_)
             throw "End of string suddenly at read()";
-        if (*current_ == '\n') {
+        if (*current_ == '\n')
+        {
             line_.clear();
             ++line_number_;
-        } else {
+        }
+        else
+        {
             line_.push_back(*current_);
         }
         current_ = next_;
         if (next_ != last_)
             ++next_;
     }
-    parse_error read_error(std::string message) {
+    parse_error read_error(std::string message)
+    {
         std::string line;
         while (current_ != last_ && *current_ != '\n')
             line.push_back(*current_++);
         return parse_error(std::move(message), line_number_, line_, line);
     }
 
-    explicit operator bool() const {
+    explicit operator bool() const
+    {
         return current_ != last_;
     }
-    char peek() const {
+    char peek() const
+    {
         if (current_ == last_)
             throw "Do not access end of string at peek()";
         return *current_;
     }
-    bool has_next() const {
+    bool has_next() const
+    {
         return next_ != last_;
     }
-    char next() const {
+    char next() const
+    {
         if (next_ == last_)
             throw "Next value is already end of string";
         return *next_;
     }
 
-    typedef std::tuple<Iterator, const std::string*, int> context_t;
-    context_t save() const {
+    typedef std::tuple<Iterator, const std::string *, int> context_t;
+    context_t save() const
+    {
         return std::make_tuple(current_, &line_, line_number_);
     }
-    void load(context_t context) {
+    void load(context_t context)
+    {
         current_ = next_ = std::get<0>(context);
         if (next_ != last_)
             ++next_;
@@ -212,8 +255,9 @@ public:
         line_number_ = std::get<2>(context);
     }
 
-    template<class F>
-    range_t read_while(F f) {
+    template <class F>
+    range_t read_while(F f)
+    {
         if (current_ == last_)
             throw "End of string suddenly at read_while()";
         auto first = current_;
@@ -221,90 +265,114 @@ public:
             read();
         return std::make_pair(first, current_);
     }
-    template<class F>
-    range_t read_while_or_eof(F f) {
+    template <class F>
+    range_t read_while_or_eof(F f)
+    {
         auto first = current_;
         while (current_ != last_ && f(*current_))
             read();
         return std::make_pair(first, current_);
     }
 
-    void skip_whitespace() {
+    void skip_whitespace()
+    {
         read_while([](char c) { return c <= 32; });
     }
-    void skip_whitespace_or_eof() {
+    void skip_whitespace_or_eof()
+    {
         read_while_or_eof([](char c) { return c <= 32; });
     }
-    range_t read_ident() {
+    range_t read_ident()
+    {
         skip_whitespace();
         return read_while([](char c) { return c > 32 && c != '{' && c != '}'; });
     }
-    std::string read_ident_str() {
+    std::string read_ident_str()
+    {
         auto r = read_ident();
         return std::string(r.first, r.second);
     }
-    range_t read_variable() {
+    range_t read_variable()
+    {
         auto r = read_while([](char c) { return c > 32 && c != '.' && c != '{' && c != '}'; });
         if (r.first == r.second)
             throw "Did not find variable at read_variable().";
         return r;
     }
-    std::string read_variable_str() {
+    std::string read_variable_str()
+    {
         auto r = read_variable();
         return std::string(r.first, r.second);
     }
 
-    void eat(char c) {
+    void eat(char c)
+    {
         if (peek() != c)
             throw std::string("Unexpected character ") + peek() + ". Expected character is " + c;
         read();
     }
-    void eat(const char* p) {
+    void eat(const char *p)
+    {
         while (*p)
             eat(*p++);
     }
-    void eat_with_whitespace(const char* p) {
+    void eat_with_whitespace(const char *p)
+    {
         skip_whitespace();
         eat(p);
     }
-    static bool equal(std::pair<Iterator, Iterator> p, const char* str) {
+    static bool equal(std::pair<Iterator, Iterator> p, const char *str)
+    {
         while (p.first != p.second && *str)
             if (*p.first++ != *str++)
                 return false;
-        return p.first == p.second && not *str;
+        return p.first == p.second && not*str;
     }
 };
 
-template<class F, std::size_t N>
-static void output_string(F& out, const char (&s)[N]) {
+template <class F, std::size_t N>
+static void output_string(F &out, const char (&s)[N])
+{
     out.put(s, s + N - 1);
 }
 
-template<class Iterator, class Dictionary>
-static object get_variable(parser<Iterator>& p, const Dictionary& dic, tmpl_context& ctx, bool skip) {
+template <class Iterator, class Dictionary>
+static object get_variable(parser<Iterator> &p, const Dictionary &dic, tmpl_context &ctx, bool skip)
+{
     p.skip_whitespace();
-    if (skip) {
+    if (skip)
+    {
         p.read_variable();
-        while (p.peek() == '.') {
+        while (p.peek() == '.')
+        {
             p.read();
             p.read_variable();
         }
         return object();
-    } else {
+    }
+    else
+    {
         std::string var = p.read_variable_str();
         auto it = ctx.find(var);
         object obj;
-        if (it != ctx.end() && not it->second.empty()) {
+        if (it != ctx.end() && not it->second.empty())
+        {
             obj = it->second.back();
-        } else {
+        }
+        else
+        {
             auto it2 = dic.find(var);
-            if (it2 != dic.end()) {
+            if (it2 != dic.end())
+            {
                 obj = it2->second;
-            } else {
+            }
+            else
+            {
                 throw std::string("Variable \"") + var + "\" is not found";
             }
         }
-        while (p.peek() == '.') {
+        while (p.peek() == '.')
+        {
             p.read();
             std::string var = p.read_variable_str();
             obj = obj[var];
@@ -313,9 +381,11 @@ static object get_variable(parser<Iterator>& p, const Dictionary& dic, tmpl_cont
     }
 }
 
-template<class Iterator, class Dictionary, class F>
-static void block(parser<Iterator>& p, const Dictionary& dic, tmpl_context& ctx, bool skip, F& out) {
-    while (p) {
+template <class Iterator, class Dictionary, class F>
+static void block(parser<Iterator> &p, const Dictionary &dic, tmpl_context &ctx, bool skip, F &out)
+{
+    while (p)
+    {
         auto r = p.read_while_or_eof([](char c) { return c != '}' && c != '$'; });
         if (not skip)
             out.put(r.first, r.second);
@@ -323,60 +393,83 @@ static void block(parser<Iterator>& p, const Dictionary& dic, tmpl_context& ctx,
             break;
 
         char c = p.peek();
-        if (c == '}') {
-            if (p.has_next() && p.next() == '}') {
+        if (c == '}')
+        {
+            if (p.has_next() && p.next() == '}')
+            {
                 // end of block
                 break;
-            } else {
+            }
+            else
+            {
                 p.read();
                 if (not skip)
                     output_string(out, "}");
             }
-        } else if (c == '$') {
+        }
+        else if (c == '$')
+        {
             p.read();
             c = p.peek();
-            if (c == '$') {
+            if (c == '$')
+            {
                 // $$
                 p.read();
                 if (not skip)
                     output_string(out, "$");
-            } else if (c == '#') {
+            }
+            else if (c == '#')
+            {
                 // $# comments
                 p.read_while_or_eof([](char peek) {
                     return peek != '\n';
                 });
-            } else if (c == '{') {
+            }
+            else if (c == '{')
+            {
                 p.read();
                 c = p.peek();
-                if (c == '{') {
+                if (c == '{')
+                {
                     // ${{
                     p.read();
                     if (not skip)
                         output_string(out, "{{");
-                } else {
+                }
+                else
+                {
                     // ${variable}
                     object obj = get_variable(p, dic, ctx, skip);
                     p.eat_with_whitespace("}");
 
-                    if (not skip) {
+                    if (not skip)
+                    {
                         std::string str = obj.str();
                         out.put(str.begin(), str.end());
                     }
                 }
-            } else if (c == '}') {
+            }
+            else if (c == '}')
+            {
                 p.read();
                 c = p.peek();
-                if (c == '}') {
+                if (c == '}')
+                {
                     // $}}
                     p.read();
                     if (not skip)
                         output_string(out, "}}");
-                } else {
+                }
+                else
+                {
                     throw std::string("Unexpected character '") + c + "'. It must be '}' after \"$}\"";
                 }
-            } else {
+            }
+            else
+            {
                 auto command = p.read_ident();
-                if (p.equal(command, "for")) {
+                if (p.equal(command, "for"))
+                {
                     // $for x in xs {{ <block> }}
                     auto var1 = p.read_ident_str();
                     auto in = p.read_ident();
@@ -385,11 +478,14 @@ static void block(parser<Iterator>& p, const Dictionary& dic, tmpl_context& ctx,
                     object obj = get_variable(p, dic, ctx, skip);
                     p.eat_with_whitespace("{{");
 
-                    if (skip) {
+                    if (skip)
+                    {
                         block(p, dic, ctx, true, out);
-                    } else {
+                    }
+                    else
+                    {
                         auto context = p.save();
-                        auto& vec = ctx[var1];
+                        auto &vec = ctx[var1];
                         obj.map([&](object v) {
                             vec.push_back(std::move(v));
                             block(p, dic, ctx, skip, out);
@@ -399,7 +495,9 @@ static void block(parser<Iterator>& p, const Dictionary& dic, tmpl_context& ctx,
                         block(p, dic, ctx, true, out);
                     }
                     p.eat("}}");
-                } else if (p.equal(command, "if")) {
+                }
+                else if (p.equal(command, "if"))
+                {
                     // $if x {{ <block> }}
                     // $elseif y {{ <block> }}
                     // $elseif z {{ <block> }}
@@ -407,224 +505,297 @@ static void block(parser<Iterator>& p, const Dictionary& dic, tmpl_context& ctx,
                     object obj = get_variable(p, dic, ctx, skip);
                     p.eat_with_whitespace("{{");
                     bool run; // if `skip` is true, `run` is an unspecified value.
-                    if (skip) {
+                    if (skip)
+                    {
                         block(p, dic, ctx, true, out);
-                    } else {
+                    }
+                    else
+                    {
                         run = static_cast<bool>(obj);
                         block(p, dic, ctx, not run, out);
                     }
                     p.eat("}}");
-                    while (true) {
+                    while (true)
+                    {
                         auto context = p.save();
                         p.skip_whitespace_or_eof();
-                        if (!p) {
+                        if (!p)
+                        {
                             p.load(context);
                             break;
                         }
                         c = p.peek();
-                        if (c == '$') {
+                        if (c == '$')
+                        {
                             p.read();
                             auto command = p.read_ident();
-                            if (p.equal(command, "elseif")) {
+                            if (p.equal(command, "elseif"))
+                            {
                                 object obj = get_variable(p, dic, ctx, skip || run);
                                 p.eat_with_whitespace("{{");
-                                if (skip || run) {
+                                if (skip || run)
+                                {
                                     block(p, dic, ctx, true, out);
-                                } else {
+                                }
+                                else
+                                {
                                     bool run_ = static_cast<bool>(obj);
                                     block(p, dic, ctx, not run_, out);
                                     if (run_)
                                         run = true;
                                 }
                                 p.eat("}}");
-                            } else if (p.equal(command, "else")) {
+                            }
+                            else if (p.equal(command, "else"))
+                            {
                                 p.eat_with_whitespace("{{");
                                 block(p, dic, ctx, skip || run, out);
                                 p.eat("}}");
                                 break;
-                            } else {
+                            }
+                            else
+                            {
                                 p.load(context);
                                 break;
                             }
-                        } else {
+                        }
+                        else
+                        {
                             p.load(context);
                             break;
                         }
                     }
-                } else {
+                }
+                else
+                {
                     throw "Unexpected command " + std::string(command.first, command.second) + ". It must be \"for\" or \"if\"";
                 }
             }
-        } else {
+        }
+        else
+        {
             assert(false && "must not go through.");
             throw "Must not go through.";
         }
     }
 }
 
-template<class IOS>
-struct output_type {
+template <class IOS>
+struct output_type
+{
     IOS ios;
-    output_type(IOS ios) : ios(std::forward<IOS>(ios)) { }
+    output_type(IOS ios) : ios(std::forward<IOS>(ios)) {}
 
-    template<class Iterator>
-    void put(Iterator first, Iterator last) {
+    template <class Iterator>
+    void put(Iterator first, Iterator last)
+    {
         std::copy(first, last, std::ostreambuf_iterator<char>(ios));
     }
-    void flush() {
+    void flush()
+    {
         ios << std::flush;
     }
 
-    output_type(output_type&&) = default;
-    output_type& operator=(output_type&&) = default;
+    output_type(output_type &&) = default;
+    output_type &operator=(output_type &&) = default;
 
-    output_type(const output_type&) = delete;
-    output_type& operator=(const output_type&) = delete;
+    output_type(const output_type &) = delete;
+    output_type &operator=(const output_type &) = delete;
 };
 
-struct cstring : std::iterator<std::forward_iterator_tag, char> {
-    cstring() : p(nullptr) { }
-    cstring(const char* p) : p(p) { }
-    cstring(const cstring& c) : p(c.p) { }
+struct cstring : std::iterator<std::forward_iterator_tag, char>
+{
+    cstring() : p(nullptr) {}
+    cstring(const char *p) : p(p) {}
+    cstring(const cstring &c) : p(c.p) {}
     cstring begin() { return cstring(p); }
     cstring end() { return cstring(); }
-    cstring& operator++() {
+    cstring &operator++()
+    {
         assert(*p != '\0');
         ++p;
         return *this;
     }
-    cstring operator++(int) {
+    cstring operator++(int)
+    {
         assert(*p != '\0');
         cstring t = *this;
         ++p;
         return t;
     }
-    const char& operator*() {
+    const char &operator*()
+    {
         return *p;
     }
-    const char& operator*() const {
+    const char &operator*() const
+    {
         return *p;
     }
-    friend bool operator==(const cstring& a, const cstring& b) {
-        return
-            not a.p && not b.p ? true :
-            not a.p &&     b.p ? *b.p == '\0' :
-                a.p && not b.p ? *a.p == '\0' :
-                                 a.p == b.p;
+    friend bool operator==(const cstring &a, const cstring &b)
+    {
+        return not a.p && not b.p ? true : not a.p && b.p ? *b.p == '\0' : a.p && not b.p ? *a.p == '\0' : a.p == b.p;
     }
-    friend bool operator!=(const cstring& a, const cstring& b) {
+    friend bool operator!=(const cstring &a, const cstring &b)
+    {
         return !(a == b);
     }
-private:
-    const char* p;
+
+  private:
+    const char *p;
 };
 
-}
+} // namespace internal
 
-template<class IOS>
-static internal::output_type<IOS> from_ios(IOS&& ios) {
+template <class IOS>
+static internal::output_type<IOS> from_ios(IOS &&ios)
+{
     return internal::output_type<IOS>(std::forward<IOS>(ios));
 }
 
-template<class Input, class Dictionary, class Output>
-static void parse(Input&& input, Dictionary&& dic, Output&& out) {
+template <class Input, class Dictionary, class Output>
+static void parse(Input &&input, Dictionary &&dic, Output &&out)
+{
     auto first = std::begin(input);
     auto last = std::end(input);
-    if (first == last) return;
+    if (first == last)
+        return;
 
     auto p = internal::parser<decltype(first)>(first, last);
     internal::tmpl_context ctx;
-    try {
+    try
+    {
         internal::block(p, dic, ctx, false, out);
-    } catch (std::string message) {
+    }
+    catch (std::string message)
+    {
         throw p.read_error(std::move(message));
-    } catch (...) {
+    }
+    catch (...)
+    {
         throw p.read_error("unexpected error");
     }
     out.flush();
 }
-template<class Input, class Dictionary>
-static void parse(Input&& input, Dictionary&& dic) {
+template <class Input, class Dictionary>
+static void parse(Input &&input, Dictionary &&dic)
+{
     parse(std::forward<Input>(input), std::forward<Dictionary>(dic), from_ios(std::cout));
 }
-template<class Dictionary, class Output>
-static void parse(const char* input, Dictionary&& dic, Output&& out) {
+template <class Dictionary, class Output>
+static void parse(const char *input, Dictionary &&dic, Output &&out)
+{
     parse(internal::cstring(input), std::forward<Dictionary>(dic), std::forward<Output>(out));
 }
-template<class Dictionary>
-static void parse(const char* input, Dictionary&& dic) {
+template <class Dictionary>
+static void parse(const char *input, Dictionary &&dic)
+{
     parse(internal::cstring(input), std::forward<Dictionary>(dic), from_ios(std::cout));
 }
 
-void to_render_data(const nlohmann::json& json, std::map<std::string, object>& render_map);
-template<typename Object>
-void to_render_data_impl(const nlohmann::json& json, Object&& render_data, const std::string& key);
+void to_render_data(const nlohmann::json &json, std::map<std::string, object> &render_map);
+template <typename Object>
+void to_render_data_impl(const nlohmann::json &json, Object &&render_data, const std::string &key);
 
-template<typename Object>
-static void to_render_data_impl(const nlohmann::json& json, Object&& render_data, const std::string& key)
+template <typename Object>
+static void to_render_data_impl(const nlohmann::json &json, Object &&render_data, const std::string &key)
 {
-	if (json.is_object()) {
-		for (auto it = json.begin(); it != json.end(); ++it)
-		{
-			auto name = it.key();
-			to_render_data_impl(it.value(), render_data[key], name);
-		}
-	}
-	else if (json.is_array()) {
-		std::vector<object> list;
-		for (auto it = json.begin(); it != json.end(); ++it)
-		{
-			if (!(*it).is_object()) {
-				if ((*it).is_string()) {
-					list.push_back((*it).get<std::string>());
-				}
-				else if ((*it).is_number_float()) {
-					list.push_back((*it).get<double>());
-				}
-				else if ((*it).is_number_integer()) {
-					list.push_back((*it).get<int>());
-				}
-			}
-			else {
-				std::map<std::string, render::object> object_tmp;
-				to_render_data(*it, object_tmp);
-				list.push_back(object_tmp);
-			}
-		}
-		render_data[key] = list;
-	}
-	else if (json.is_string()) {
-		render_data[key] = json.get<std::string>();
-	}
-	else if (json.is_number_float()) {
-		render_data[key] = json.get<float>();
-	}
-	else if (json.is_number_integer()) {
-		render_data[key] = json.get<int>();
-	}
+    if (json.is_object())
+    {
+        for (auto it = json.begin(); it != json.end(); ++it)
+        {
+            auto name = it.key();
+            to_render_data_impl(it.value(), render_data[key], name);
+        }
+    }
+    else if (json.is_array())
+    {
+        std::vector<object> list;
+        for (auto it = json.begin(); it != json.end(); ++it)
+        {
+            if (!(*it).is_object())
+            {
+                if ((*it).is_string())
+                {
+                    list.push_back((*it).get<std::string>());
+                }
+                else if ((*it).is_number_float())
+                {
+                    list.push_back((*it).get<double>());
+                }
+                else if ((*it).is_number_integer())
+                {
+                    list.push_back((*it).get<int>());
+                }
+                else if ((*it).is_boolean())
+                {
+                    list.push_back((*it).get<bool>());
+                }
+                else if ((*it).is_null())
+                {
+                    list.push_back(nullptr);
+                }
+                else if ((*it).is_number_unsigned())
+                {
+                    list.push_back((*it).get<unsigned int>());
+                }
+            }
+            else
+            {
+                std::map<std::string, render::object> object_tmp;
+                to_render_data(*it, object_tmp);
+                list.push_back(object_tmp);
+            }
+        }
+        render_data[key] = list;
+    }
+    else if (json.is_string())
+    {
+        ginner_obj[key] = json.get<std::string>();
+    }
+    else if (json.is_number_float())
+    {
+        ginner_obj[key] = json.get<double>();
+    }
+    else if (json.is_number_integer())
+    {
+        ginner_obj[key] = json.get<int>();
+    }
+    else if (json.is_boolean())
+    {
+        ginner_obj[key] = json.get<bool>();
+    }
+    else if (json.is_null())
+    {
+        ginner_obj[key] = nullptr;
+    }
+    else if (json.is_number_unsigned())
+    {
+        ginner_obj[key] = json.get<unsigned int>();
+    }
 }
 
-static void to_render_data(const nlohmann::json& json, std::map<std::string, object>& render_map)
+static void to_render_data(const nlohmann::json &json, std::map<std::string, object> &render_map)
 {
-	for (auto iter = json.begin(); iter != json.end(); ++iter) {
-		to_render_data_impl(iter.value(), render_map, iter.key());
-	}
+    for (auto iter = json.begin(); iter != json.end(); ++iter)
+    {
+        to_render_data_impl(iter.value(), render_map, iter.key());
+    }
 }
 
-static std::string render(const std::string& tpl_filepath, const nlohmann::json& data)
+static std::string render(const std::string &tpl_filepath, const nlohmann::json &data)
 {
-	std::stringstream buff;
-	std::ifstream file(tpl_filepath);
-	if (!file.is_open()) {
-		throw std::runtime_error("html template file can not open");
-	}
-	buff << file.rdbuf();
-	std::stringstream result;
-	std::map<std::string, object> render_map;
-	to_render_data(data, render_map);
-	render::parse(buff.str(), render_map, render::from_ios(result));
-	return result.str();
+    std::stringstream buff;
+    std::ifstream file(tpl_filepath);
+    if (!file.is_open())
+    {
+        throw std::runtime_error("html template file can not open");
+    }
+    buff << file.rdbuf();
+    std::stringstream result;
+    std::map<std::string, object> render_map;
+    to_render_data(data, render_map);
+    render::parse(buff.str(), render_map, render::from_ios(result));
+    return result.str();
 }
 
-}
-
+} // namespace render
