@@ -600,7 +600,7 @@ static void to_render_data_impl(const nlohmann::json& json, Object&& render_data
 					list.push_back((*it).get<bool>());
 				}
 				else if ((*it).is_null()) {
-					list.push_back(nullptr);
+					list.push_back("null");
 				}
 				else if ((*it).is_number_unsigned()) {
 					list.push_back((*it).get<unsigned int>());
@@ -627,7 +627,7 @@ static void to_render_data_impl(const nlohmann::json& json, Object&& render_data
 		render_data[key] = json.get<bool>();
 	}
 	else if (json.is_null()) {
-		render_data[key] = nullptr;
+		render_data[key] = "null";
 	}
 	else if (json.is_number_unsigned()) {
 		render_data[key] = json.get<unsigned int>();
