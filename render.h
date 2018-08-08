@@ -11,6 +11,7 @@
 #include <iterator>
 #include <functional>
 #include <memory>
+#include <iomanip>
 #include "nlohmann_json.hpp"
 
 namespace render {
@@ -55,12 +56,23 @@ class object {
             map_<T>(0, f);
         };
 
-        template<class U, int = sizeof(std::declval<std::stringstream&>() << std::declval<U>())>
-        std::string str_(int) const {
-            std::stringstream ss;
-            ss << obj;
-            return ss.str();
-        }
+		template<class U, int = sizeof(std::declval<std::stringstream&>() << std::declval<U>())>
+		std::string str_(int) const {
+			return str_help(obj);
+		}
+
+		template<typename Object>
+		std::string str_help(Object& t) const {
+			std::stringstream ss;
+			ss << t;
+			return ss.str();
+		}
+
+		std::string str_help(double t) const {
+			std::stringstream ss;
+			ss << std::setprecision(64) << t;
+			return ss.str();
+		}
         template<class U>
         std::string str_(...) const {
             throw "This value does not have operator<<().";
@@ -584,9 +596,18 @@ static void to_render_data_impl(const nlohmann::json& json, Object&& render_data
 				else if ((*it).is_number_integer()) {
 					list.push_back((*it).get<int>());
 				}
+				else if ((*it).is_boolean()) {
+					list.push_back((*it).get<bool>());
+				}
+				else if ((*it).is_null()) {
+					list.push_back(nullptr);
+				}
+				else if ((*it).is_number_unsigned()) {
+					list.push_back((*it).get<unsigned int>());
+				}
 			}
 			else {
-				std::map<std::string, render::object> object_tmp;
+				std::map<std::string, object> object_tmp;
 				to_render_data(*it, object_tmp);
 				list.push_back(object_tmp);
 			}
@@ -597,10 +618,19 @@ static void to_render_data_impl(const nlohmann::json& json, Object&& render_data
 		render_data[key] = json.get<std::string>();
 	}
 	else if (json.is_number_float()) {
-		render_data[key] = json.get<float>();
+		render_data[key] = json.get<double>();
 	}
 	else if (json.is_number_integer()) {
 		render_data[key] = json.get<int>();
+	}
+	else if (json.is_boolean()) {
+		render_data[key] = json.get<bool>();
+	}
+	else if (json.is_null()) {
+		render_data[key] = nullptr;
+	}
+	else if (json.is_number_unsigned()) {
+		render_data[key] = json.get<unsigned int>();
 	}
 }
 
