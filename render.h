@@ -11,6 +11,7 @@
 #include <iterator>
 #include <functional>
 #include <memory>
+#include "nlohmann_json.hpp"
 
 namespace render {
 
@@ -101,6 +102,8 @@ public:
     std::string str() const { return holder_->str(); }
     object operator[](std::string name) { return holder_->get(std::move(name)); }
 };
+
+using json = nlohmann::json;
 
 typedef std::map<std::string, object> temple;
 
@@ -551,6 +554,76 @@ static void parse(const char* input, Dictionary&& dic, Output&& out) {
 template<class Dictionary>
 static void parse(const char* input, Dictionary&& dic) {
     parse(internal::cstring(input), std::forward<Dictionary>(dic), from_ios(std::cout));
+}
+
+void to_render_data(const nlohmann::json& json, std::map<std::string, object>& render_map);
+template<typename Object>
+void to_render_data_impl(const nlohmann::json& json, Object&& render_data, const std::string& key);
+
+template<typename Object>
+static void to_render_data_impl(const nlohmann::json& json, Object&& render_data, const std::string& key)
+{
+	if (json.is_object()) {
+		for (auto it = json.begin(); it != json.end(); ++it)
+		{
+			auto name = it.key();
+			to_render_data_impl(it.value(), render_data[key], name);
+		}
+	}
+	else if (json.is_array()) {
+		std::vector<object> list;
+		for (auto it = json.begin(); it != json.end(); ++it)
+		{
+			if (!(*it).is_object()) {
+				if ((*it).is_string()) {
+					list.push_back((*it).get<std::string>());
+				}
+				else if ((*it).is_number_float()) {
+					list.push_back((*it).get<double>());
+				}
+				else if ((*it).is_number_integer()) {
+					list.push_back((*it).get<int>());
+				}
+			}
+			else {
+				std::map<std::string, render::object> object_tmp;
+				to_render_data(*it, object_tmp);
+				list.push_back(object_tmp);
+			}
+		}
+		render_data[key] = list;
+	}
+	else if (json.is_string()) {
+		render_data[key] = json.get<std::string>();
+	}
+	else if (json.is_number_float()) {
+		render_data[key] = json.get<float>();
+	}
+	else if (json.is_number_integer()) {
+		render_data[key] = json.get<int>();
+	}
+}
+
+static void to_render_data(const nlohmann::json& json, std::map<std::string, object>& render_map)
+{
+	for (auto iter = json.begin(); iter != json.end(); ++iter) {
+		to_render_data_impl(iter.value(), render_map, iter.key());
+	}
+}
+
+static std::string render(const std::string& tpl_filepath, const nlohmann::json& data)
+{
+	std::stringstream buff;
+	std::ifstream file(tpl_filepath);
+	if (!file.is_open()) {
+		throw std::runtime_error("html template file can not open");
+	}
+	buff << file.rdbuf();
+	std::stringstream result;
+	std::map<std::string, object> render_map;
+	to_render_data(data, render_map);
+	render::parse(buff.str(), render_map, render::from_ios(result));
+	return result.str();
 }
 
 }
