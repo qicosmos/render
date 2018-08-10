@@ -641,7 +641,7 @@ static void to_render_data(const nlohmann::json& json, std::map<std::string, obj
 	}
 }
 
-static std::string render(const std::string& tpl_filepath, const nlohmann::json& data)
+static std::string render_file(const std::string& tpl_filepath, const nlohmann::json& data)
 {
 	std::stringstream buff;
 	std::ifstream file(tpl_filepath);
@@ -653,6 +653,15 @@ static std::string render(const std::string& tpl_filepath, const nlohmann::json&
 	std::map<std::string, object> render_map;
 	to_render_data(data, render_map);
 	render::parse(buff.str(), render_map, render::from_ios(result));
+	return result.str();
+}
+
+static std::string render_string(const std::string& tpl_str, const nlohmann::json& data)
+{
+	std::stringstream result;
+	std::map<std::string, object> render_map;
+	to_render_data(data, render_map);
+	render::parse(tpl_str, render_map, render::from_ios(result));
 	return result.str();
 }
 
